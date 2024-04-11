@@ -24,7 +24,7 @@ class MECSystemGenerator:
     MECSystem = None
 
     def __init__(self):
-        # 信道帶寬(Mhz)，通常超五類信息道的帶寛為100Mhz
+        # 信道帶寬(MhH)，通常超五類信息道的帶寛為100MHz
         self.CHANNEL_BANDWIDTHS = 100
         # 信道增益，計算較為複雜，先設為1
         self.CHANNEL_GAIN = 1
@@ -39,7 +39,7 @@ class MECSystemGenerator:
         self.MEC_TRANSMISSION = 1000
         self.UPLINK_SIGNAL_FREQUENCY = [825, 954]
         # WD和MEC的距離的范圍
-        self.WD_MEC_DISTANCE_SCOPE = [10, 1000]
+        self.WD_MEC_DISTANCE_SCOPE = [10, 5000]
 
     # 輸入參數: 需要的WD和MEC數量
     def generateMEC(self, WDNumber, MECNumber):
@@ -76,16 +76,16 @@ class MECSystemGenerator:
                         })
 
         return self.MECSystem
-    
+
 
 '''
 計算信道的最大傳輸速率
-B: 信道帶寬
+B: 信道帶寬(MHz)
 Hi: 信道增益
-Pi: 平均功率
-N0: 高斯白噪聲
-distance: 端到端距離
-f: 信號頻率
+Pi: 平均功率(mW)
+N0: 高斯白噪聲(dBm)
+distance: 端到端距離 (m)
+f: 信號頻率(Mhz)
 '''
 
 
@@ -99,18 +99,20 @@ def MAX_TRANSMISSION_SPEED(B, Hi, Pi, N0, f, distance):
     Prx = Pi_dBm - Lpath
     Prx_mW = math.pow(10, Prx / 10)
     # 信道增益
-    HPi = Hi * Prx_mW / Pi
-    result = round(B * math.log2(1 + (HPi * Pi / N0_mW)), 2)
-    return result
+    HPi = Hi * Prx_mW  # / Pi
+    # 香農公式中B單位是Hz，雖然Prx和N0的單位應該是W，但它們相除了，所以可以不改
+    result = round(B * math.pow(10, 6) * math.log2(1 + (HPi * Pi / N0_mW)), 2)
+    return round(result / 8 / 1024 / 1024, 2)  # MB/s
 
 
 def draw_graph(G):
-    pos = nx.spring_layout(G)  # 定義節點位置
+    pos = nx.spring_layout(G,5)  # 定義節點位置
+
     # 繪製節點
     node_labels = {node: f"{node}\n{G.nodes[node]['labels']['calculation']}" for node in G.nodes()}
     edge_labels = {edge: G.edges[edge]['labels']['maxTransmissionSpeed'] for edge in G.edges()}
 
-    nx.draw_networkx_nodes(G, pos, node_size=1000, node_color='skyblue')
+    nx.draw_networkx_nodes(G, pos, node_size=800, node_color='skyblue')
     nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=10)
 
     # 繪製邊
@@ -124,7 +126,7 @@ def draw_graph(G):
 
 if __name__ == '__main__':
     mec = MECSystemGenerator()
-    G = mec.generateMEC(1, 10)
+    G = mec.generateMEC(15, 5)
     WD1 = WD(1, 1)
     print(WD1.calculation)
     # 顯示圖形

@@ -5,23 +5,22 @@ from matplotlib import pyplot as plt
 import networkx as nx
 
 
-
 class TaskDAGGenerator:
     def __init__(self):
-        # 任務的數據量大小(kB)
-        self.TASK_DATA_SIZE_SCOPE = [200, 400]
-        # 任務的最大容忍時延范圍
+        # 任務的數據量大小(KB)
+        self.TASK_DATA_SIZE_SCOPE = [200, 500]
+        # 任務的最大容忍時延范圍(s)
         self.TASK_MAX_DELAY_TIME_SCOPE = [0.5, 3]
-        # 任務的平均計算密度(cycles)
-        self.TASK_CALCULATION_DENSITY_SCOPE = [400, 600]
+        # 任務的平均計算密度(cycles/bits)
+        self.TASK_CALCULATION_DENSITY_SCOPE = [400, 800]
 
-
-    def DAG_generate(self, mode='default', size =20, max_out=2, alpha=1.0, beta=1.0):
-        set_dag_size = [20, 30, 40, 50, 60, 70, 80, 90]  # 設定DAG集的大小
-        set_max_out = [1, 2, 3, 4, 5]  # 設定節點的最大出度，即該節點最多為多少個任務的前驅
+    def DAG_generate(self, mode='default', size=20, max_out=2, alpha=1.0, beta=1.0):
+        set_dag_size = [10, 20, 30, 40, 50, 60, 70, 80]  # 設定DAG集的大小
+        set_max_out = [1, 2, 3, 4]  # 設定節點的最大出度，即該節點最多為多少個任務的前驅
         set_alpha = [0.5, 1.0, 2.0]  # 形狀參數，alpha越小，DAG越瘦長，反之相反。即alpha小會偏向線性單任務
         set_beta = [0.0, 0.5, 1.0, 2.0]  # 每層寛度的規則度，beta越大，DAG越不規則，模彷各種類型的任務場景
-        DAG_argument={"dag_size":0, "max_out": 0, "alpha": 0 ,"beta": 0}
+        DAG_argument = {"dag_size": 0, "max_out": 0, "alpha": 0, "beta": 0}
+        # DAG的參數可以自行設定，也可以默認隨機
         if mode == 'default':
             DAG_argument["dag_size"] = random.sample(set_dag_size, 1)[0]
             DAG_argument["max_out"] = random.sample(set_max_out, 1)[0]
@@ -32,10 +31,12 @@ class TaskDAGGenerator:
             DAG_argument["max_out"] = max_out
             DAG_argument["alpha"] = alpha
             DAG_argument["beta"] = beta
-
+        # 圖的深度
         length = math.floor(math.sqrt(DAG_argument["dag_size"]) / DAG_argument["alpha"])
-        mean_value = args.n / length
-        random_num = np.random.normal(loc=mean_value, scale=args.beta, size=(length, 1))
+        # 每層的平均節點個數
+        mean_value = DAG_argument["dag_size"] / length
+        # 返回一個符合正太分布的數組，參數: loc-均值，scale-標准差(離散程度)，size-形狀(長度為length的一維數組)
+        random_num = np.random.normal(loc=mean_value, scale=DAG_argument["beta"], size=(length, 1))
         ###############################################division############################################
         position = {'Start': (0, 4), 'Exit': (10, 4)}
         generate_num = 0
@@ -43,18 +44,18 @@ class TaskDAGGenerator:
         dag_list = []
         for i in range(len(random_num)):
             dag_list.append([])
-            for j in range(math.ceil(random_num[i])):
+            for j in range(math.ceil(random_num[i][0])):
                 dag_list[i].append(j)
-            generate_num += math.ceil(random_num[i])
+            generate_num += math.ceil(random_num[i][0])
 
-        if generate_num != args.n:
-            if generate_num < args.n:
-                for i in range(args.n - generate_num):
+        if generate_num != DAG_argument["dag_size"]:
+            if generate_num < DAG_argument["dag_size"]:
+                for i in range(DAG_argument["dag_size"] - generate_num):
                     index = random.randrange(0, length, 1)
                     dag_list[index].append(len(dag_list[index]))
-            if generate_num > args.n:
+            if generate_num > DAG_argument["dag_size"]:
                 i = 0
-                while i < generate_num - args.n:
+                while i < generate_num - DAG_argument["dag_size"]:
                     index = random.randrange(0, length, 1)
                     if len(dag_list[index]) == 1:
                         i = i - 1 if i != 0 else 0
@@ -77,15 +78,15 @@ class TaskDAGGenerator:
             position['Exit'] = (3 * (length + 1), max_pos / 2)
 
         ############################################link###################################################
-        into_degree = [0] * args.n
-        out_degree = [0] * args.n
+        into_degree = [0] * DAG_argument["dag_size"]
+        out_degree = [0] * DAG_argument["dag_size"]
         edges = []
         pred = 0
 
         for i in range(length - 1):
             sample_list = list(range(len(dag_list_update[i + 1])))
             for j in range(len(dag_list_update[i])):
-                od = random.randrange(1, args.max_out + 1, 1)
+                od = random.randrange(1, DAG_argument["max_out"] + 1, 1)
                 od = len(dag_list_update[i + 1]) if len(dag_list_update[i + 1]) < od else od
                 bridge = random.sample(sample_list, od)
                 for k in bridge:
@@ -108,9 +109,53 @@ class TaskDAGGenerator:
         #############################################plot##################################################
         return edges, into_degree, out_degree, position
 
-    def plot_DAG(edges, postion):
+    def plot_DAG(self, edges, position):
         g1 = nx.DiGraph()
         g1.add_edges_from(edges)
-        nx.draw_networkx(g1, arrows=True, pos=postion)
+        nx.draw_networkx(g1, arrows=True, pos=position)
         plt.savefig("DAG.png", format="PNG")
         return plt.clf
+
+    def transform_networkx_DAG(self, position, edges):
+        G = nx.DiGraph()
+        G.add_nodes_from(position.keys())
+        G.add_edges_from(edges)
+        G.nodes["Start"]["Cycles"] = 0
+        G.nodes["Start"]["DataIn"] = 0
+        G.nodes["Exit"]["Cycles"] = 0
+        G.nodes["Exit"]["DataIn"] = 0
+        for nodes in G.nodes:
+            if nodes != "Start" and nodes != "Exit":
+                G.nodes[nodes]["Cycles"] = random.randint(self.TASK_CALCULATION_DENSITY_SCOPE[0],
+                                                          self.TASK_CALCULATION_DENSITY_SCOPE[1])
+                G.nodes[nodes]["DataIn"] = random.randint(self.TASK_DATA_SIZE_SCOPE[0], self.TASK_DATA_SIZE_SCOPE[1])
+        predecessors = G.predecessors("Exit")
+        for predecessor in predecessors:
+            G.nodes[predecessor]["MaxDelayTime"] = random.randint(self.TASK_MAX_DELAY_TIME_SCOPE[0] * 1000,
+                                                                  self.TASK_MAX_DELAY_TIME_SCOPE[1] * 1000)
+        return G
+
+
+def draw_graph(G):
+    pos = nx.spring_layout(G,2)  # 定義節點位置
+    # 繪製節點
+    node_labels = {node: f"{node}\n{G.nodes[node]['Cycles'], G.nodes[node]['DataIn']}" for node in G.nodes()}
+    # edge_labels = {edge: G.edges[edge]['labels']['maxTransmissionSpeed'] for edge in G.edges()}
+
+    nx.draw_networkx_nodes(G, pos, node_size=500, node_color='skyblue')
+    nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=10)
+
+    # 繪製邊
+    nx.draw_networkx_edges(G, pos)
+    # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)  # 顯示邊的標籤
+
+    # 顯示圖形
+    plt.axis('off')
+    plt.show()
+
+
+if __name__ == '__main__':
+    task = TaskDAGGenerator()
+    edges, into, out, position = task.DAG_generate()
+    G = task.transform_networkx_DAG(position, edges)
+    draw_graph(G)
