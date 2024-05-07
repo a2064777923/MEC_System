@@ -24,8 +24,8 @@ class MECSystemGenerator:
     MECSystem = None
 
     def __init__(self):
-        # 信道帶寬(MhH)，通常超五類信息道的帶寛為100MHz
-        self.CHANNEL_BANDWIDTHS = 100
+        # 信道帶寬(MhH)，802.11n支持20/40/80/160 Mhz帶寛
+        self.CHANNEL_BANDWIDTHS = 20
         # 信道增益，計算較為複雜，先設為1
         self.CHANNEL_GAIN = 1
         # 背景噪聲功率(dBm)
