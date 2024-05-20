@@ -7,12 +7,14 @@ import networkx as nx
 
 class TaskDAGGenerator:
     def __init__(self):
-        # 任務的數據量大小(KB)
-        self.TASK_DATA_SIZE_SCOPE = [200, 500]
+
+        # 应用的數據量大小(KB)
+        self.TASK_DATA_SIZE_SCOPE = [200, 400]
         # 任務的最大容忍時延范圍(s)
         self.TASK_MAX_DELAY_TIME_SCOPE = [0.5, 3]
         # 任務的平均計算密度(cycles/bits)
-        self.TASK_CALCULATION_DENSITY_SCOPE = [400, 800]
+        self.TASK_CALCULATION_DENSITY_SCOPE = [400, 600]
+
 
     def DAG_generate(self, mode='default', size=20, max_out=2, alpha=1.0, beta=1.0):
         set_dag_size = [10, 20, 30, 40, 50, 60, 70, 80]  # 設定DAG集的大小
@@ -27,10 +29,24 @@ class TaskDAGGenerator:
             DAG_argument["alpha"] = random.sample(set_alpha, 1)[0]
             DAG_argument["beta"] = random.sample(set_beta, 1)[0]
         else:
-            DAG_argument["dag_size"] = size
-            DAG_argument["max_out"] = max_out
-            DAG_argument["alpha"] = alpha
-            DAG_argument["beta"] = beta
+
+            if size != -1:
+                DAG_argument["dag_size"] = size
+            else:
+                DAG_argument["dag_size"] = random.sample(set_dag_size, 1)[0]
+            if max_out != -1:
+                DAG_argument["max_out"] = max_out
+            else:
+                DAG_argument["max_out"] = random.sample(set_max_out, 1)[0]
+            if alpha != -1:
+                DAG_argument["alpha"] = alpha
+            else:
+                DAG_argument["alpha"] = random.sample(set_alpha, 1)[0]
+            if beta != -1:
+                DAG_argument["beta"] = beta
+            else:
+                DAG_argument["beta"] = random.sample(set_beta, 1)[0]
+
         # 圖的深度
         length = math.floor(math.sqrt(DAG_argument["dag_size"]) / DAG_argument["alpha"])
         # 每層的平均節點個數
@@ -107,7 +123,9 @@ class TaskDAGGenerator:
                 out_degree[node] += 1
 
         #############################################plot##################################################
-        return edges, into_degree, out_degree, position
+
+        return DAG_argument["dag_size"], edges, into_degree, out_degree, position
+
 
     def plot_DAG(self, edges, position):
         g1 = nx.DiGraph()
@@ -116,7 +134,9 @@ class TaskDAGGenerator:
         plt.savefig("DAG.png", format="PNG")
         return plt.clf
 
-    def transform_networkx_DAG(self, position, edges):
+
+    def transform_networkx_DAG(self, size, position, edges):
+
         G = nx.DiGraph()
         G.add_nodes_from(position.keys())
         G.add_edges_from(edges)
@@ -124,11 +144,22 @@ class TaskDAGGenerator:
         G.nodes["Start"]["DataIn"] = 0
         G.nodes["Exit"]["Cycles"] = 0
         G.nodes["Exit"]["DataIn"] = 0
+
+        application_size = random.randint(self.TASK_DATA_SIZE_SCOPE[0] * 1024 * 8,
+                                          self.TASK_DATA_SIZE_SCOPE[1] * 1024 * 8) * math.ceil(size/15)
+        mean = application_size / size
+        std_dev = mean / 3
+        tasks_size = np.random.normal(mean, std_dev, size)  # 用np.random.normal生成符合正態分布的任務輸入數據大小
+        i = 0
+
         for nodes in G.nodes:
             if nodes != "Start" and nodes != "Exit":
                 G.nodes[nodes]["Cycles"] = random.randint(self.TASK_CALCULATION_DENSITY_SCOPE[0],
                                                           self.TASK_CALCULATION_DENSITY_SCOPE[1])
-                G.nodes[nodes]["DataIn"] = random.randint(self.TASK_DATA_SIZE_SCOPE[0], self.TASK_DATA_SIZE_SCOPE[1])
+
+                G.nodes[nodes]["DataIn"] = round(tasks_size[i] /1024 / 8,2)
+                i += 1
+
         predecessors = G.predecessors("Exit")
         for predecessor in predecessors:
             G.nodes[predecessor]["MaxDelayTime"] = random.randint(self.TASK_MAX_DELAY_TIME_SCOPE[0] * 1000,
@@ -137,7 +168,9 @@ class TaskDAGGenerator:
 
 
 def draw_graph(G):
-    pos = nx.spring_layout(G,2)  # 定義節點位置
+
+    pos = nx.spring_layout(G, 2)  # 定義節點位置
+
     # 繪製節點
     node_labels = {node: f"{node}\n{G.nodes[node]['Cycles'], G.nodes[node]['DataIn']}" for node in G.nodes()}
     # edge_labels = {edge: G.edges[edge]['labels']['maxTransmissionSpeed'] for edge in G.edges()}
@@ -156,6 +189,9 @@ def draw_graph(G):
 
 if __name__ == '__main__':
     task = TaskDAGGenerator()
-    edges, into, out, position = task.DAG_generate()
-    G = task.transform_networkx_DAG(position, edges)
+
+    size, edges, into, out, position = task.DAG_generate(mode="size",size= 20,alpha= 0.5 , beta=1.0) #task.DAG_generate(mode="tt" ,size=10)
+
+
+    G = task.transform_networkx_DAG(size, position, edges)
     draw_graph(G)

@@ -13,6 +13,11 @@ class LocalExecute:
         total_task_delay_time = 0
         task_delay_form = {}
 
+        Pcount = 0.06 #執行任務功率，單位W
+        Pfree = 0.02 #空閒功率，單位W
+        energy_consumption =0
+
+
 
         # 初始化任務執行狀態
         task_status = {task: False for task in taskGraph.nodes if task not in ["Start", "Exit"]}
@@ -24,6 +29,9 @@ class LocalExecute:
         start_successors = list(taskGraph.successors("Start"))
         for successor in start_successors:
             # heapq用于实現堆排序算法
+
+            taskGraph.nodes[successor]["readyTime"] = 1
+
             heapq.heappush(task_priority_queue, (calculator.MAX_TOLERANCE_DELAY(successor, wd_node), successor))
 
         while task_priority_queue:
@@ -31,17 +39,27 @@ class LocalExecute:
             if current_task == "Exit":
                 continue
 
+
+
+
             # 隨機選擇一個WD執行當前任務
             # selected_WD = random.choice([node for node in mecSystem.nodes if mecSystem.nodes[node]['labels']['type'] == 'WD'])
 
             task_execute_time = calculator.LOCAL_CALCULATION_DELAY(current_task,wd_node)  # 計算任務執行時延
             total_task_completion_time += task_execute_time
             # 時間線
-            time_line += task_execute_time
+
+            time_line += task_execute_time + 2
             # 更新任務的實際完成時間
             calculator.updateActualFinishTime(current_task,time_line)
+            taskGraph.nodes[current_task]["actualFinishTime"] = time_line
+
+            #計算能秏
+            energy_consumption += task_execute_time/1000 * Pcount
             # 任務的完成時間減去任務的就緒時間，為任務延迟了多久才被執行
-            task_delay_time = time_line - calculator.TASK_READY_TIME(current_task)
+            taskGraph.nodes[current_task]["readyTime"] = calculator.TASK_READY_TIME(current_task)
+            task_delay_time = time_line - taskGraph.nodes[current_task]["readyTime"]
+
             total_task_delay_time += task_delay_time
             task_delay_form[current_task] = task_delay_time
 

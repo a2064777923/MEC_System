@@ -1,5 +1,8 @@
 import math
 
+import random
+
+
 import networkx as nx
 
 
@@ -28,8 +31,49 @@ class Calculator:
         MECcFrequency = self.MECGraph.nodes[MEC_no]["labels"]["calculation"]
         MECcFrequency *= math.pow(10, 9)
         edge_data = self.MECGraph.get_edge_data(WD_no, MEC_no)
-        maxTSpeed = edge_data["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8  # 轉bits/s
-        return (cycles / MECcFrequency + dataIn / maxTSpeed) * 1000  # s轉ms
+
+        maxTSpeed = 0
+        transportTime = 0
+        if edge_data is None:
+            neighbors = list(self.MECGraph.neighbors(WD_no))  # 若服務器节点與移動設備沒有直接信道連接，需要由最近的服務器轉發
+            sorted_neighbors = sorted(neighbors, key=lambda x: self.MECGraph.edges[WD_no, x]["labels"]['distance'])
+            min_distance_node = sorted_neighbors[0]
+            edge_data_w_m = self.MECGraph.get_edge_data(WD_no, min_distance_node)
+            edge_data_m1_m2 = self.MECGraph.get_edge_data(min_distance_node, MEC_no)
+            transportTime1 = dataIn / (edge_data_w_m["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            transportTime2 = dataIn / (edge_data_m1_m2["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            maxTSpeed = edge_data_w_m["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8
+            transportTime = transportTime1 + transportTime2
+            transportTime *= 1000
+        else:
+            maxTSpeed = edge_data["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8  # MB/s轉bits/s
+
+            transportTime = dataIn / maxTSpeed * 1000
+
+        return (cycles / MECcFrequency) * 1000 + transportTime  # s轉ms
+
+
+    # 任務結果回傳時間
+    def TASK_TRANSPORT_BACK_TIME(self, task, from_device, MEC_no):
+        dataIn = random.uniform(self.taskGraph.nodes[task]["DataIn"]/20, self.taskGraph.nodes[task]["DataIn"]/5) * 8 * 1024  # KB轉bits
+
+        edge_data = self.MECGraph.get_edge_data(from_device, MEC_no)
+        transportTime = 0
+        if edge_data is None:
+            neighbors = list(self.MECGraph.neighbors(from_device))  # 若服務器节点與移動設備沒有直接信道連接，需要由最近的服務器轉發
+            sorted_neighbors = sorted(neighbors, key=lambda x: self.MECGraph.edges[from_device, x]["labels"]['distance'])
+            min_distance_node = sorted_neighbors[0]
+            edge_data_w_m = self.MECGraph.get_edge_data(from_device, min_distance_node)
+            edge_data_m1_m2 = self.MECGraph.get_edge_data(min_distance_node, MEC_no)
+            transportTime1 = dataIn / (edge_data_w_m["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            transportTime2 = dataIn / (edge_data_m1_m2["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            transportTime = transportTime1 + transportTime2
+            transportTime *= 1000
+        else:
+            maxTSpeed = edge_data["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8  # MB/s轉bits/s
+            transportTime = dataIn / maxTSpeed * 1000
+
+        return transportTime  # s轉ms
 
     # 計算計算通信比CVR
     def CALCULATE_CVR(self, task, WD_no, MEC_no):
@@ -38,8 +82,24 @@ class Calculator:
         MECcFrequency = self.MECGraph.nodes[MEC_no]["labels"]["calculation"]
         MECcFrequency *= math.pow(10, 9)
         edge_data = self.MECGraph.get_edge_data(WD_no, MEC_no)
-        maxTSpeed = edge_data["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8
-        return (cycles / MECcFrequency) / (dataIn / maxTSpeed)
+
+
+        if edge_data is None:
+            neighbors = list(self.MECGraph.neighbors(WD_no))  # 若服務器节点與移動設備沒有直接信道連接，需要由最近的服務器轉發
+            sorted_neighbors = sorted(neighbors, key=lambda x: self.MECGraph.edges[WD_no, x]["labels"]['distance'])
+            min_distance_node = sorted_neighbors[0]
+            edge_data_w_m = self.MECGraph.get_edge_data(WD_no, min_distance_node)
+            edge_data_m1_m2 = self.MECGraph.get_edge_data(min_distance_node, MEC_no)
+            transportTime1 = dataIn / (edge_data_w_m["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            transportTime2 = dataIn / (edge_data_m1_m2["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8)
+            transportTime = transportTime1 + transportTime2
+            transportTime *= 1000
+        else:
+            maxTSpeed = edge_data["labels"]["maxTransmissionSpeed"] * 1024 * 1024 * 8  # MB/s轉bits/s
+            transportTime = dataIn / maxTSpeed * 1000
+
+        return (cycles / MECcFrequency) / transportTime
+
 
     def updateActualFinishTime(self, task, ActualFinishTime):
         self.taskGraph.nodes[task]["actualFinishTime"] = ActualFinishTime
